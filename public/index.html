@@ -1,0 +1,215 @@
+<!-- LOAD THE JAVASCRIPT LIBRARIES WE NEED -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/3.9.3/lodash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ractive/0.9.3/ractive.min.js"></script>
+<script src="./ractive-tap.js"></script>
+<script src="./constants.js"></script>
+
+<div id="target"></div>
+
+<script id="template" type="text/ractive">
+    <button on-tap="['loadCars']">Load Cars</button>
+    <button on-tap="['addCar']">Add Car</button>
+
+    <table>
+        <tr>
+            <td>Make</td>
+            <td>Model</td>
+            <td>Year</td>
+            <td>Value</td>
+            <td>Mileage</td>
+            <td>Transmission</td>
+            <td>Colour</td>
+            <td></td>
+        </tr>
+
+        {{#each cars}}
+            <tr>
+                <td>{{make}}</td>
+                <td>{{model}}</td>
+                <td>{{year}}</td>
+                <td>{{value}}</td>
+                <td>{{mileage}}</td>
+                <td>{{transmission}}</td>
+                <td>{{colour}}</td>
+                <td><button on-tap="['delete', _id]">Delete</button></td>
+            </tr>
+        {{else}}
+            <tr>
+                <td colspan=7>No cars loaded</td>
+            </tr>
+        {{/each}}
+        
+        <tr style='visibility: {{#if showAddCarRow}}visible{{else}}hidden{{/if}}'>
+            <td>
+                <select id='newMake' value='{{newMake}}'>
+                    {{#each makes}}
+                        <option>{{this}}</option>
+                    {{/each}}
+                </select>    
+            </td>
+            <td>
+                <select id='newModel' value='{{newModel}}'>
+                    {{#each models}}
+                        <option>{{this}}</option>
+                    {{/each}}
+                </select> 
+            </td>
+            <td><input value='{{newYear}}' style='width:50px'></td>
+            <td><input value='{{newValue}}' style='width:50px'></td>
+            <td><input value='{{newMileage}}' style='width:50px'></td>
+            <td>
+                <select id='newTransmissionType' value='{{newTransmissionType}}'>
+                    {{#each transmissionTypes}}
+                        <option>{{this}}</option>
+                    {{/each}}
+                </select>            
+            </td>
+            <td><input value='{{newColour}}' style='width:50px'></td>
+            <td><button on-tap="['save']">Save</button></td>
+        </tr>
+    </table>
+</script>
+
+<script>
+var cars;
+
+var ractive = new Ractive({
+    target: '#target',
+    template: '#template',
+    data: {
+        cars: {},
+        showAddCarRow: false,
+        makes: MAKES,
+        newMake: '',
+        models: '',
+        newModel: '',
+        transmissionTypes: TRANSMISSIONTYPES,
+        newYear: '',
+        newValue: '',
+        newMileage: '',
+        newTransmissionType: '',
+        newColour: ''
+    }
+});
+  
+ractive.observe('newMake', function (newValue, oldValue) {
+    if (newValue == "Ford") {
+        ractive.set('models', FORDMODELS);
+    } else if (newValue == "Toyota") {
+        ractive.set('models', TOYOTAMODELS);
+    } else if (newValue == "Subaru") {
+        ractive.set('models', SUBARUMODELS);
+    } else if (newValue == "Honda") {
+        ractive.set('models', HONDAMODELS);
+    } else {
+        //TODO: catch miss case
+    }
+
+    ractive.set('newModel', '');
+});
+
+ractive.on({
+    delete: function(ctx, carID) { 
+        deleteCar(carID);
+    },
+	loadCars: function () {;
+        ractive.set('showAddCarRow', false)
+		getCars();
+    },
+    addCar: function () {;
+        ractive.set('showAddCarRow', true);
+    },
+    save: function() {
+        addCar();
+    }
+});
+
+//inital load
+ractive.fire("loadCars");
+
+function getCars() {
+    var request = new Request('http://localhost:3000/cars', {method: 'GET'});
+    fetch(request)
+        .then((resp) => resp.json())
+        .then(function(data){
+            //handle API errors
+            if (data.cod && data.cod != 200){
+                alert(data.cod + '\n' + data.message);
+                return;
+            }
+
+            if (data) {
+                ractive.set("cars", data);
+            }
+        })
+} 
+
+function deleteCar(id) {
+    var request = new Request('http://localhost:3000/cars/' + id, {method: 'DELETE'});
+    fetch(request)
+        .then((resp) => resp.json())
+        .then(function(data){
+            //handle API errors
+            if (data.cod && data.cod != 200){
+                alert(data.cod + '\n' + data.message);
+                return;
+            }
+
+            if (data) {
+                getCars();
+            }
+        })    
+}
+function addCar() {
+    console.log("in addCar");
+
+    var payload = {
+        make: ractive.get('newMake'),
+        model: ractive.get('newModel'),
+        year: ractive.get('newYear'),
+        value: ractive.get('newValue'),
+        mileage: ractive.get('newMileage'),
+        transmission: ractive.get('newTransmissionType'),
+        colour: ractive.get('newColour')
+    };
+
+    var request = new Request('http://localhost:3000/cars/', {
+      method: "POST",
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+    fetch(request)
+        .then((resp) => resp.json())
+        .then(function(data){
+            //handle API errors
+            if (data.cod && data.cod != 200 && data.message.length != 0){
+                alert(data.cod + '\n' + data.message);
+                return;
+            }
+
+            if (data) {
+                getCars();
+                ractive.set('showAddCarRow', false);
+
+                ractive.set('newMake', '');
+                ractive.set('newModel', '');
+                ractive.set('newYear', '');
+                ractive.set('newValue', '');
+                ractive.set('newMileage', '');
+                ractive.set('newTransmissionType', '');
+                ractive.set('newColour', '');
+            }
+        })    
+}
+</script>
+
+
+
+    
+
+
+
+
